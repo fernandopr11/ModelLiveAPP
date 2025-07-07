@@ -139,9 +139,15 @@ class LoginViewController: UIViewController {
         animateInitialAppearance()
     }
     
+    // ✅ AGREGAR AL viewDidLayoutSubviews
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         backgroundGradientLayer.frame = view.bounds
+        
+        // ✅ AJUSTAR PREVIEW LAYER SI EXISTE
+        if isScanning, let previewLayer = facialAuth?.getCameraPreviewLayer() {
+            previewLayer.frame = facePreviewContainer.bounds
+        }
     }
     
     // MARK: - Setup Methods
@@ -248,12 +254,37 @@ class LoginViewController: UIViewController {
     
     // MARK: - Data Loading
     private func loadRegisteredUsers() {
-        // Simulate loading registered users
-        // In a real implementation, this would get data from FacialAuthManager
-        // For now, we'll create some mock data if users exist
+        print("🔍 LoginViewController: Cargando usuarios registrados...")
         
-        // This would be: registeredUsers = facialAuth.getAllRegisteredUsers()
-        // For demo purposes, let's check if any users exist and create mock data
+        // ✅ USAR FACIAL AUTH MANAGER PARA OBTENER USUARIOS REALES
+        do {
+            let userIds = try facialAuth.getAllRegisteredUsers()
+            
+            // ✅ CREAR LISTA CON USUARIOS REALES Y NOMBRES CORRECTOS
+            registeredUsers = userIds.compactMap { userId in
+                do {
+                    // Obtener info del perfil
+                    if let profile = try facialAuth.getUserProfileInfo(userId: userId) {
+                        // ✅ USAR EL DISPLAY NAME REAL, NO EL USER ID
+                        return (id: userId, name: profile.displayName)
+                    }
+                    return nil
+                } catch {
+                    print("❌ Error obteniendo perfil de \(userId): \(error)")
+                    return nil
+                }
+            }
+            
+            print("✅ LoginViewController: \(registeredUsers.count) usuarios encontrados:")
+            for user in registeredUsers {
+                print("   - \(user.name) (\(user.id))")
+            }
+            
+        } catch {
+            print("❌ LoginViewController: Error cargando usuarios: \(error)")
+            registeredUsers = []
+        }
+        
         updateUI()
     }
     
@@ -304,18 +335,33 @@ class LoginViewController: UIViewController {
         // Show camera preview
         showCameraPreview()
         
+        // ✅ CONFIGURAR PREVIEW DE CÁMARA ANTES DE AUTENTICAR
+        facialAuth.setupCameraPreview(in: self, previewView: facePreviewContainer)
+        
         // Start facial authentication
         facialAuth.authenticateUser(userId: userID, in: self)
+        
+        print("📹 LoginViewController: Preview configurado y autenticación iniciada")
     }
     
+    // ✅ MODIFICAR showCameraPreview()
     private func showCameraPreview() {
         UIView.animate(withDuration: 0.5) {
             self.facePreviewContainer.isHidden = false
             self.cameraGuideView.isHidden = false
             self.userSelectionContainer.alpha = 0.5
         }
+        
+        // ✅ ASEGURAR QUE EL PREVIEW LAYER SE AJUSTE AL FRAME
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            if let previewLayer = self.facialAuth.getCameraPreviewLayer() {
+                previewLayer.frame = self.facePreviewContainer.bounds
+                
+                print("📺 LoginViewController: Preview layer ajustado")
+                print("   - Frame actualizado: \(self.facePreviewContainer.bounds)")
+            }
+        }
     }
-    
     private func resetUI() {
         isScanning = false
         scanButton.setTitle("Escanear Rostro", for: .normal)

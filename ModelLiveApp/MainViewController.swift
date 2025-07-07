@@ -191,7 +191,8 @@ class MainViewController: UIViewController {
             debugMode: true,
             logMetrics: true,
             trainingMode: .standard,
-            enableLiveTraining: true
+            enableLiveTraining: true,
+            maxTrainingSamples: 10
         )
         
         facialAuth = FacialAuthManager(configuration: config)

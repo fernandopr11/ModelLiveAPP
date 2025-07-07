@@ -49,7 +49,7 @@ class RegistrationViewController: UIViewController {
         textField.textAlignment = .center
         textField.autocapitalizationType = .words
         textField.autocorrectionType = .no
-        textField.returnKeyType = .done // ✅ Para cerrar teclado con Enter
+        textField.returnKeyType = .done
         textField.translatesAutoresizingMaskIntoConstraints = false
         return textField
     }()
@@ -137,6 +137,11 @@ class RegistrationViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         backgroundGradientLayer.frame = view.bounds
+        
+        // ✅ AJUSTAR PREVIEW LAYER SI EXISTE
+        if isCapturing, let previewLayer = facialAuth?.getCameraPreviewLayer() {
+            previewLayer.frame = facePreviewContainer.bounds
+        }
     }
     
     // MARK: - Setup Methods
@@ -228,7 +233,7 @@ class RegistrationViewController: UIViewController {
         cancelButton.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
         
         nameTextField.addTarget(self, action: #selector(nameTextFieldChanged), for: .editingChanged)
-        nameTextField.delegate = self // ✅ Para manejar el teclado
+        nameTextField.delegate = self
     }
     
     private func generateUserID() {
@@ -270,8 +275,13 @@ class RegistrationViewController: UIViewController {
         // Show camera preview
         showCameraPreview()
         
+        // ✅ CONFIGURAR PREVIEW DE CÁMARA ANTES DE INICIAR
+        facialAuth.setupCameraPreview(in: self, previewView: facePreviewContainer)
+        
         // Start facial registration
         facialAuth.registerUser(userId: currentUserID, displayName: userName, in: self)
+        
+        print("📹 RegistrationViewController: Preview configurado y registro iniciado")
     }
     
     private func showCameraPreview() {
@@ -281,8 +291,15 @@ class RegistrationViewController: UIViewController {
             self.progressView.isHidden = false
         }
         
-        // Add camera preview layer (if available from facialAuth)
-        // This would need to be implemented to get the preview layer from FacialAuthManager
+        // ✅ ASEGURAR QUE EL PREVIEW LAYER SE AJUSTE AL FRAME
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            if let previewLayer = self.facialAuth.getCameraPreviewLayer() {
+                previewLayer.frame = self.facePreviewContainer.bounds
+                
+                print("📺 RegistrationViewController: Preview layer ajustado")
+                print("   - Frame actualizado: \(self.facePreviewContainer.bounds)")
+            }
+        }
     }
     
     private func resetUI() {
@@ -377,7 +394,7 @@ class RegistrationViewController: UIViewController {
         })
         
         UIView.animate(withDuration: 0.6, delay: 0.7, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: .curveEaseOut, animations: {
-            self.startButton.alpha = 1.0 // ✅ Always enabled for testing
+            self.startButton.alpha = 1.0 // Always enabled for testing
             self.startButton.transform = .identity
         })
         
@@ -386,7 +403,7 @@ class RegistrationViewController: UIViewController {
             self.statusLabel.alpha = 1
         })
         
-        // ✅ Initial button state - always enabled for testing
+        // Initial button state - always enabled for testing
         startButton.isEnabled = true
     }
 }
@@ -395,7 +412,7 @@ class RegistrationViewController: UIViewController {
 extension RegistrationViewController: UITextFieldDelegate {
     
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        textField.resignFirstResponder() // ✅ Oculta el teclado cuando presionas Enter
+        textField.resignFirstResponder()
         return true
     }
 }
@@ -422,10 +439,12 @@ extension RegistrationViewController: FacialAuthDelegate {
         updateProgress(progress)
         
         if progress < 0.5 {
-            updateStatus("Capturando imágenes... \(Int(progress * 100))%")
+            updateStatus("Capturando muestras... \(Int(progress * 100))%")
         } else {
             updateStatus("Entrenando modelo... \(Int(progress * 100))%")
         }
+        
+        print("📊 RegistrationViewController: Progreso \(Int(progress * 100))%")
     }
     
     func trainingDidStart(mode: TrainingMode) {
@@ -438,6 +457,20 @@ extension RegistrationViewController: FacialAuthDelegate {
     
     func trainingDidComplete(metrics: TrainingMetrics) {
         updateStatus("Entrenamiento completado en \(String(format: "%.1f", metrics.totalTime))s")
+    }
+    
+    func trainingSampleCaptured(sampleCount: Int, totalNeeded: Int) {
+        updateStatus("Muestra \(sampleCount)/\(totalNeeded) capturada")
+        
+        print("📸 RegistrationViewController: Muestra \(sampleCount)/\(totalNeeded)")
+    }
+    
+    func trainingDataValidated(isValid: Bool, quality: Float) {
+        if isValid {
+            updateStatus("✅ Muestra válida (calidad: \(Int(quality * 100))%)")
+        } else {
+            updateStatus("⚠️ Mejora posición del rostro")
+        }
     }
     
     func authenticationStateChanged(_ state: AuthState) {
@@ -457,6 +490,4 @@ extension RegistrationViewController: FacialAuthDelegate {
     func authenticationDidCancel() {}
     func trainingDidFail(error: AuthError) {}
     func trainingDidCancel() {}
-    func trainingSampleCaptured(sampleCount: Int, totalNeeded: Int) {}
-    func trainingDataValidated(isValid: Bool, quality: Float) {}
 }
