@@ -588,37 +588,57 @@ extension RegistrationViewController: FacialAuthDelegate {
     
     // ✅ Métodos de registro
     func registrationDidSucceed(userProfile: UserProfile) {
+        print("🎉 RegistrationViewController: registrationDidSucceed EJECUTADO para \(userProfile.displayName)")
+        
         updateStatus("¡Registro completado exitosamente! ✅")
+        updateProgress(1.0) // ✅ ASEGURAR QUE LLEGUE A 100%
         animateSuccess()
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            print("🚀 RegistrationViewController: Llamando a delegate?.registrationDidComplete")
             self.delegate?.registrationDidComplete(userName: self.userName)
         }
     }
     
+    
     func registrationDidFail(error: AuthError) {
+        print("❌ RegistrationViewController: registrationDidFail EJECUTADO - \(error)")
         updateStatus("Error: \(error.errorDescription ?? "Desconocido") ❌")
         resetUI()
     }
     
     func registrationProgress(_ progress: Float) {
+        print("📊 RegistrationViewController: registrationProgress EJECUTADO - \(Int(progress * 100))%")
+        
         updateProgress(progress)
         
         if progress < 0.5 {
-            updateStatus("Capturando muestras... \(Int(progress * 100))%")
+            let samples = Int(progress * 20)
+            updateStatus("📸 Capturando muestras... \(samples)/10")
         } else {
-            updateStatus("Entrenando modelo... \(Int(progress * 100))%")
+            let trainingPercent = Int((progress - 0.5) * 200)
+            updateStatus("🏋️ Entrenando modelo... \(trainingPercent)%")
         }
-        
-        print("📊 RegistrationViewController: Progreso \(Int(progress * 100))%")
     }
     
     func trainingDidStart(mode: TrainingMode) {
         updateStatus("Iniciando entrenamiento...")
     }
     
+  
     func trainingProgress(_ progress: Float, epoch: Int, loss: Float, accuracy: Float) {
-        updateStatus("Entrenando: Época \(epoch) - Precisión: \(Int(accuracy * 100))%")
+        // ✅ SEGUNDA MITAD DEL PROGRESO (50-100%)
+        let totalProgress = 0.5 + (progress * 0.5)
+        updateProgress(totalProgress)
+        
+        updateStatus("🏋️ Entrenando: Época \(epoch) - \(Int(accuracy * 100))% precisión")
+        
+        // ✅ CAMBIAR COLOR SEGÚN PROGRESO DE ENTRENAMIENTO
+        if progress > 0.8 {
+            cameraGuideView.layer.borderColor = UIColor.systemBlue.cgColor
+        } else {
+            cameraGuideView.layer.borderColor = UIColor.systemPurple.cgColor
+        }
     }
     
     func trainingDidComplete(metrics: TrainingMetrics) {
@@ -626,10 +646,24 @@ extension RegistrationViewController: FacialAuthDelegate {
     }
     
     func trainingSampleCaptured(sampleCount: Int, totalNeeded: Int) {
-        updateStatus("Muestra \(sampleCount)/\(totalNeeded) capturada")
+        print("📸 RegistrationViewController: trainingSampleCaptured EJECUTADO - \(sampleCount)/\(totalNeeded)")
         
-        print("📸 RegistrationViewController: Muestra \(sampleCount)/\(totalNeeded)")
+        let progress = Float(sampleCount) / Float(totalNeeded) * 0.5
+        updateProgress(progress)
+        
+        updateStatus("📸 Muestra \(sampleCount)/\(totalNeeded) capturada")
+        
+        // Cambiar color del guide
+        if sampleCount == totalNeeded {
+            cameraGuideView.layer.borderColor = UIColor.systemPurple.cgColor
+            updateStatus("🎉 ¡Muestras capturadas! Entrenando...")
+        } else if sampleCount > totalNeeded / 2 {
+            cameraGuideView.layer.borderColor = UIColor.systemGreen.cgColor
+        } else {
+            cameraGuideView.layer.borderColor = UIColor.systemOrange.cgColor
+        }
     }
+    
     
     func trainingDataValidated(isValid: Bool, quality: Float) {
         if isValid {
