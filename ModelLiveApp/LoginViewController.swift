@@ -139,7 +139,6 @@ class LoginViewController: UIViewController {
         animateInitialAppearance()
     }
     
-    // ✅ AGREGAR AL viewDidLayoutSubviews
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         backgroundGradientLayer.frame = view.bounds
@@ -189,6 +188,7 @@ class LoginViewController: UIViewController {
         userTableView.register(UserTableViewCell.self, forCellReuseIdentifier: "UserCell")
     }
     
+    // MARK: - Setup Constraints (MÉTODO CORREGIDO)
     private func setupConstraints() {
         NSLayoutConstraint.activate([
             // Title
@@ -229,21 +229,22 @@ class LoginViewController: UIViewController {
             cameraGuideView.widthAnchor.constraint(equalToConstant: 200),
             cameraGuideView.heightAnchor.constraint(equalToConstant: 200),
             
-            // Status Label
+            // ✅ FIX: Status Label ahora va DEBAJO del facePreviewContainer
             statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            statusLabel.topAnchor.constraint(equalTo: facePreviewContainer.bottomAnchor, constant: 20),
+            statusLabel.topAnchor.constraint(equalTo: facePreviewContainer.bottomAnchor, constant: 30), // ✅ CAMBIO AQUÍ
             statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
             statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -40),
             
-            // Scan Button
+            // ✅ FIX: Scan Button ahora va DEBAJO del statusLabel
             scanButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            scanButton.bottomAnchor.constraint(equalTo: cancelButton.topAnchor, constant: -20),
+            scanButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 30), // ✅ CAMBIO AQUÍ
             scanButton.widthAnchor.constraint(equalToConstant: 280),
             scanButton.heightAnchor.constraint(equalToConstant: 50),
             
-            // Cancel Button
+            // ✅ FIX: Cancel Button ahora va DEBAJO del scanButton
             cancelButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            cancelButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            cancelButton.topAnchor.constraint(equalTo: scanButton.bottomAnchor, constant: 20), // ✅ CAMBIO AQUÍ
+            cancelButton.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20) // ✅ SEGURIDAD
         ])
     }
     
@@ -256,16 +257,12 @@ class LoginViewController: UIViewController {
     private func loadRegisteredUsers() {
         print("🔍 LoginViewController: Cargando usuarios registrados...")
         
-        // ✅ USAR FACIAL AUTH MANAGER PARA OBTENER USUARIOS REALES
         do {
             let userIds = try facialAuth.getAllRegisteredUsers()
             
-            // ✅ CREAR LISTA CON USUARIOS REALES Y NOMBRES CORRECTOS
             registeredUsers = userIds.compactMap { userId in
                 do {
-                    // Obtener info del perfil
                     if let profile = try facialAuth.getUserProfileInfo(userId: userId) {
-                        // ✅ USAR EL DISPLAY NAME REAL, NO EL USER ID
                         return (id: userId, name: profile.displayName)
                     }
                     return nil
@@ -344,7 +341,6 @@ class LoginViewController: UIViewController {
         print("📹 LoginViewController: Preview configurado y autenticación iniciada")
     }
     
-    // ✅ MODIFICAR showCameraPreview()
     private func showCameraPreview() {
         UIView.animate(withDuration: 0.5) {
             self.facePreviewContainer.isHidden = false
@@ -362,6 +358,7 @@ class LoginViewController: UIViewController {
             }
         }
     }
+    
     private func resetUI() {
         isScanning = false
         scanButton.setTitle("Escanear Rostro", for: .normal)
@@ -508,11 +505,10 @@ extension LoginViewController: UITableViewDataSource, UITableViewDelegate {
     }
 }
 
-
 // MARK: - FacialAuthDelegate
 extension LoginViewController: FacialAuthDelegate {
     
-    // ✅ Métodos de autenticación (los que ya tienes)
+    // ✅ Métodos de autenticación
     func authenticationDidSucceed(userProfile: UserProfile) {
         updateStatus("¡Autenticación exitosa! ✅")
         animateSuccess()
@@ -546,49 +542,21 @@ extension LoginViewController: FacialAuthDelegate {
         }
     }
     
-    // ✅ Métodos de registro (AGREGAR - vacíos porque no aplican para login)
-    func registrationDidSucceed(userProfile: UserProfile) {
-        // No aplica para login
-    }
+    // ✅ Métodos de registro (vacíos porque no aplican para login)
+    func registrationDidSucceed(userProfile: UserProfile) {}
+    func registrationDidFail(error: AuthError) {}
+    func registrationProgress(_ progress: Float) {}
     
-    func registrationDidFail(error: AuthError) {
-        // No aplica para login
-    }
+    // ✅ Métodos de entrenamiento (vacíos porque no aplican para login)
+    func trainingDidStart(mode: TrainingMode) {}
+    func trainingProgress(_ progress: Float, epoch: Int, loss: Float, accuracy: Float) {}
+    func trainingDidComplete(metrics: TrainingMetrics) {}
+    func trainingDidFail(error: AuthError) {}
+    func trainingDidCancel() {}
+    func trainingSampleCaptured(sampleCount: Int, totalNeeded: Int) {}
+    func trainingDataValidated(isValid: Bool, quality: Float) {}
     
-    func registrationProgress(_ progress: Float) {
-        // No aplica para login
-    }
-    
-    // ✅ Métodos de entrenamiento (AGREGAR - vacíos porque no aplican para login)
-    func trainingDidStart(mode: TrainingMode) {
-        // No aplica para login
-    }
-    
-    func trainingProgress(_ progress: Float, epoch: Int, loss: Float, accuracy: Float) {
-        // No aplica para login
-    }
-    
-    func trainingDidComplete(metrics: TrainingMetrics) {
-        // No aplica para login
-    }
-    
-    func trainingDidFail(error: AuthError) {
-        // No aplica para login
-    }
-    
-    func trainingDidCancel() {
-        // No aplica para login
-    }
-    
-    func trainingSampleCaptured(sampleCount: Int, totalNeeded: Int) {
-        // No aplica para login
-    }
-    
-    func trainingDataValidated(isValid: Bool, quality: Float) {
-        // No aplica para login
-    }
-    
-    // ✅ Métodos opcionales que pueden faltar
+    // ✅ Métodos opcionales
     func cameraPermissionRequired() {
         updateStatus("Se requiere permiso de cámara")
     }
@@ -686,8 +654,8 @@ class UserTableViewCell: UITableViewCell {
         super.setHighlighted(highlighted, animated: animated)
         
         UIView.animate(withDuration: 0.2) {
-            self.contentView.backgroundColor = highlighted ? 
-                UIColor.white.withAlphaComponent(0.1) : 
+            self.contentView.backgroundColor = highlighted ?
+                UIColor.white.withAlphaComponent(0.1) :
                 (self.checkmarkImageView.isHidden ? .clear : UIColor.white.withAlphaComponent(0.15))
         }
     }

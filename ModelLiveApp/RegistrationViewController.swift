@@ -10,6 +10,7 @@ class RegistrationViewController: UIViewController {
     private var currentUserID: String!
     private var userName: String = ""
     private var isCapturing = false
+    private var existingUserNames: [String] = [];
     
     // MARK: - UI Elements
     private let backgroundGradientLayer = CAGradientLayer()
@@ -132,6 +133,7 @@ class RegistrationViewController: UIViewController {
         addTargets()
         generateUserID()
         animateInitialAppearance()
+        loadExistingUserNames();
     }
     
     override func viewDidLayoutSubviews() {
@@ -156,6 +158,9 @@ class RegistrationViewController: UIViewController {
         backgroundGradientLayer.endPoint = CGPoint(x: 1, y: 1)
         view.layer.insertSublayer(backgroundGradientLayer, at: 0)
         
+        // Setup text field
+        setupTextField()
+        
         // Add UI elements
         view.addSubview(titleLabel)
         view.addSubview(instructionLabel)
@@ -168,6 +173,73 @@ class RegistrationViewController: UIViewController {
         view.addSubview(cancelButton)
         
         setupConstraints()
+    }
+    
+    // ✅ NUEVO MÉTODO: Cargar nombres existentes para validación
+    private func loadExistingUserNames() {
+        print("📋 RegistrationViewController: Cargando nombres existentes...")
+        
+        do {
+            let userIds = try facialAuth.getAllRegisteredUsers()
+            existingUserNames = []
+            
+            for userId in userIds {
+                if let profile = try facialAuth.getUserProfileInfo(userId: userId) {
+                    let name = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    // ✅ DEBUG: Ver qué displayName tiene cada perfil
+                    print("🔍 Debug - userId: \(userId)")
+                    print("🔍 Debug - displayName en perfil: '\(profile.displayName)'")
+                    print("🔍 Debug - nombre procesado: '\(name)'")
+                    
+                    if !name.isEmpty && !name.hasPrefix("Usuario ") { // ✅ Filtrar los "Usuario XXXX"
+                        existingUserNames.append(name.lowercased())
+                    }
+                }
+            }
+            
+            print("✅ RegistrationViewController: \(existingUserNames.count) nombres válidos cargados")
+            for name in existingUserNames {
+                print("   - \(name)")
+            }
+            
+        } catch {
+            print("❌ RegistrationViewController: Error cargando nombres: \(error)")
+            existingUserNames = []
+        }
+    }
+    
+    // ✅ VALIDAR NOMBRE ÚNICO
+    private func validateUserName(_ name: String) -> (isValid: Bool, message: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Verificar que no esté vacío
+        guard !trimmedName.isEmpty else {
+            return (false, "Por favor ingresa tu nombre")
+        }
+        
+        // Verificar longitud mínima
+        guard trimmedName.count >= 2 else {
+            return (false, "El nombre debe tener al menos 2 caracteres")
+        }
+        
+        // Verificar longitud máxima
+        guard trimmedName.count <= 50 else {
+            return (false, "El nombre no puede tener más de 50 caracteres")
+        }
+        
+        // Verificar que no contenga solo números
+        guard !CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: trimmedName)) else {
+            return (false, "El nombre no puede contener solo números")
+        }
+        
+        // Verificar que no exista ya (case insensitive)
+        let nameLower = trimmedName.lowercased()
+        guard !existingUserNames.contains(nameLower) else {
+            return (false, "Ya existe un usuario con este nombre")
+        }
+        
+        return (true, "Nombre válido")
     }
     
     private func setupNavigation() {
@@ -242,11 +314,62 @@ class RegistrationViewController: UIViewController {
     
     // MARK: - Button Actions
     @objc private func startButtonTapped() {
-        // 🔨 HARDCODED NAME PARA TESTING - Cambia "Juan Pérez Test" por el nombre que quieras
-        userName = "Juan Pérez Test"
+        guard let inputName = nameTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !inputName.isEmpty else {
+            showAlert("Por favor ingresa tu nombre")
+            return
+        }
+        
+        // ✅ VALIDAR NOMBRE ANTES DE CONTINUAR
+        let validation = validateUserName(inputName)
+        guard validation.isValid else {
+            showAlert(validation.message)
+            return
+        }
+        
+        userName = inputName // ✅ USAR EL NOMBRE REAL DEL USUARIO
+        
+        print("📝 RegistrationViewController: Iniciando registro con nombre: '\(userName)'")
         
         if !isCapturing {
             startFaceRegistration()
+        }
+    }
+    
+    // ✅ VALIDACIÓN EN TIEMPO REAL
+    @objc private func nameTextFieldChanged() {
+        guard let inputName = nameTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            updateButtonState(false, message: "Ingresa tu nombre")
+            return
+        }
+        
+        let validation = validateUserName(inputName)
+        updateButtonState(validation.isValid, message: validation.message)
+    }
+
+    // ✅ NUEVO MÉTODO: Actualizar estado del botón con feedback visual
+    private func updateButtonState(_ isEnabled: Bool, message: String) {
+        startButton.isEnabled = isEnabled
+        
+        UIView.animate(withDuration: 0.3) {
+            if isEnabled {
+                self.startButton.alpha = 1.0
+                self.startButton.backgroundColor = UIColor.systemGreen
+                self.statusLabel.text = "✅ \(message)"
+                self.statusLabel.textColor = .white
+            } else {
+                self.startButton.alpha = 0.6
+                self.startButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.6)
+                
+                // Mostrar mensaje de error si no está vacío
+                if !message.isEmpty && message != "Ingresa tu nombre" {
+                    self.statusLabel.text = "⚠️ \(message)"
+                    self.statusLabel.textColor = UIColor.systemYellow
+                } else {
+                    self.statusLabel.text = "Ingresa tu nombre para continuar"
+                    self.statusLabel.textColor = UIColor.white.withAlphaComponent(0.7)
+                }
+            }
         }
     }
     
@@ -255,12 +378,6 @@ class RegistrationViewController: UIViewController {
             facialAuth.cancel()
         }
         dismiss(animated: true)
-    }
-    
-    @objc private func nameTextFieldChanged() {
-        // 🔨 SIEMPRE HABILITADO PARA TESTING
-        startButton.isEnabled = true
-        startButton.alpha = 1.0
     }
     
     // MARK: - Registration Flow
@@ -394,7 +511,7 @@ class RegistrationViewController: UIViewController {
         })
         
         UIView.animate(withDuration: 0.6, delay: 0.7, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: .curveEaseOut, animations: {
-            self.startButton.alpha = 1.0 // Always enabled for testing
+            self.startButton.alpha = 0.6 // ✅ INICIALMENTE DESHABILITADO
             self.startButton.transform = .identity
         })
         
@@ -403,8 +520,29 @@ class RegistrationViewController: UIViewController {
             self.statusLabel.alpha = 1
         })
         
-        // Initial button state - always enabled for testing
-        startButton.isEnabled = true
+        // ✅ ESTADO INICIAL DEL BOTÓN
+        startButton.isEnabled = false
+        statusLabel.text = "Ingresa tu nombre para continuar"
+    }
+    
+    private func setupTextField() {
+        nameTextField.delegate = self
+        nameTextField.autocapitalizationType = .words
+        nameTextField.autocorrectionType = .no
+        nameTextField.returnKeyType = .done
+        nameTextField.clearButtonMode = .whileEditing
+        
+        // ✅ PLACEHOLDER MEJORADO
+        nameTextField.attributedPlaceholder = NSAttributedString(
+            string: "Tu nombre completo",
+            attributes: [NSAttributedString.Key.foregroundColor: UIColor.gray]
+        )
+        
+        // ✅ PADDING INTERNO
+        nameTextField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 15, height: 50))
+        nameTextField.leftViewMode = .always
+        nameTextField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 15, height: 50))
+        nameTextField.rightViewMode = .always
     }
 }
 
@@ -413,7 +551,35 @@ extension RegistrationViewController: UITextFieldDelegate {
     
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         textField.resignFirstResponder()
+        
+        // ✅ SI EL NOMBRE ES VÁLIDO, ACTIVAR EL BOTÓN AUTOMÁTICAMENTE
+        if startButton.isEnabled {
+            startButtonTapped()
+        }
+        
         return true
+    }
+    
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        // ✅ PERMITIR SOLO LETRAS, ESPACIOS Y ALGUNOS CARACTERES ESPECIALES
+        let allowedCharacters = CharacterSet.letters.union(CharacterSet.whitespaces).union(CharacterSet(charactersIn: "áéíóúüñÁÉÍÓÚÜÑ'-"))
+        let characterSet = CharacterSet(charactersIn: string)
+        
+        return allowedCharacters.isSuperset(of: characterSet)
+    }
+    
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        // ✅ ANIMACIÓN SUTIL AL EMPEZAR A EDITAR
+        UIView.animate(withDuration: 0.3) {
+            self.nameTextField.transform = CGAffineTransform(scaleX: 1.02, y: 1.02)
+        }
+    }
+    
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        // ✅ VOLVER AL TAMAÑO NORMAL
+        UIView.animate(withDuration: 0.3) {
+            self.nameTextField.transform = .identity
+        }
     }
 }
 
